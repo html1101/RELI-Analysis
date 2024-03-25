@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+    <body>
+        Hello! Inspect the HTML here to figure out how to GET files.
+        <script>
+            const info = async () => {
+                // To get the ChIP-seq index file:
+                const index = await fetch("/database/chipseq_index");
+                console.log(await index.text());
+
+                // To get a ChIPSeq sample:
+                const sample_num = "hg19_1051";
+                const sample = await fetch(`/database/chipseq_sample?sample=${sample_num}`);
+                console.log(await sample.text());
+                
+                // To get the null model:
+                const null_model = await fetch(`/database/null_model`);
+                console.log(await null_model.text());
+                
+                // Will work on allowing uploads later!
+            }
+            info();
+        </script>
+    </body>
+</html>
