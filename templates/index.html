@@ -2,6 +2,13 @@
 <html>
     <body>
         Hello! Inspect the HTML here to figure out how to GET files.
+        <form>
+            <div>
+              <label>Select file to upload</label>
+              <input type="file">
+            </div>
+            <button onclick="analyze()">Analyze</button>
+          </form>
         <script>
             const info = async () => {
                 // To get the ChIP-seq index file:
@@ -14,10 +21,24 @@
                 console.log(await sample.text());
                 
                 // To get the null model:
-                const null_model = await fetch(`/database/null_model`);
-                console.log(await null_model.text());
+                // const null_model = await fetch(`/database/null_model`);
+                // console.log(await null_model.text());
                 
-                // Will work on allowing uploads later!
+                var input = document.querySelector('input[type="file"]')
+
+                var data = new FormData()
+                data.append('file', input.files[0])
+                data.append('user', 'hubot')
+
+                async function analyze(){
+                    let data = await fetch('/upload', {
+                    method: 'POST',
+                    body: data
+                    })
+                    console.log(data);
+                }
+ 
+
             }
             info();
         </script>
