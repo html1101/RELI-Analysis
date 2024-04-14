@@ -1,13 +1,52 @@
 <!DOCTYPE html>
 <html>
+    <head>
+        <style>
+            h1 {
+                text-align: center; 
+                font-family: Arial
+            }
+            p {
+                text-align: center; 
+                font-family: Arial
+            }
+            div {
+                text-align: center; 
+                font-family: Arial
+            }
+            input[type=file]::file-selector-button {
+                border: 2px solid #6c5ce7;
+                padding: .2em .4em;
+                border-radius: .2em;
+                background-color: #a29bfe;
+                text-align: center; 
+                font-family: Arial;
+                font-size: 15px;
+            }
+
+            button {
+                border: 2px solid #6c5ce7;
+                padding: .2em .4em;
+                border-radius: .2em;
+                background-color: #a29bfe;
+                text-align: center; 
+                font-family: Arial;
+                font-size: 15px;
+            }
+
+        </style>
+    </head>
     <body>
-        Hello! Inspect the HTML here to figure out how to GET files.
+        <h1>Genome Pattern Finder</h1>
         <form>
             <div>
-              <label>Select file to upload</label>
-              <input type="file">
+              <p>Upload your file below! (File must be in [formats])</p>
+              <input type="file"/>
             </div>
-            <button onclick="analyze()">Analyze</button>
+            <div>
+                <br>
+                <button onclick="analyze()">Analyze!</button>
+            </div>
           </form>
         <script>
             const info = async () => {
