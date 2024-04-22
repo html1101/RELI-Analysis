@@ -3,14 +3,14 @@ A basic reimplementation of the RELI (Regulatory Element Locus Interection)
 algorithm as created by the Weirach Lab: https://www.nature.com/articles/s41588-018-0102-3
 """
 # Imports
-from enum import Enum
 # Colored printing
 from colorama import Fore, Back, Style
 import sys, os, time, math
 from time import sleep
 import numpy as np
-import random
+import random, scipy
 from operator import itemgetter, attrgetter
+from scipy import special as sp
 
 def LINE():
     return sys._getframe(1).f_lineno
@@ -23,13 +23,16 @@ def quitting(line: int):
     # Exit with nonzero status code
     exit(-1)
 
-# Distance fn used to calc how far away TF entries are from each other
-def distance(entry_1, entry_2):
-    return entry_2 - entry_1
+# Type of statistical model used
+[NORMAL, EMPIRICAL, PHASETYPE, BINOMIAL, DEFAULT] = range(0, 5)
 
 # Sort SNPs consecutively, first by chromosome, then by snp_start
 def snpSort(lhs, rhs):
 	return (lhs["snp_chr"] < rhs["snp_chr"]) or ((lhs["snp_chr"] == rhs["snp_chr"]) and (lhs["snp_start"] < rhs["snp_start"]))
+
+# Source: https://stackoverflow.com/questions/56075838/how-to-generate-the-values-for-the-q-function
+def qfunc(x):
+    return 0.5-0.5*sp.erf(x/math.sqrt(2))
 
 def overlap_exists(bed, snp):
     return ((bed["bed_start"] <= snp["snp_start"] and bed["bed_end"] >= snp["snp_end"]) or
@@ -105,9 +108,10 @@ class BEDSample:
         """
         # sort(this->myData.begin(), this->myData.end());
         # Sort according to length
-        arg_ordering = np.argsort(self.lengths)
-        self.data = np.array(self.data)[arg_ordering]
-        self.lengths = np.array(self.lengths)[arg_ordering]
+        # arg_ordering = np.argsort(self.lengths)
+        self.data.sort(key=lambda x: (x["bed_chr"], x["bed_start"]))
+        self.lengths.sort()
+        # self.lengths = np.array(self.lengths)[arg_ordering]
         self.median_length = self.lengths[int(len(self.lengths) / 2)]
         
         print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Parsed BED file (file: {src})")
@@ -304,11 +308,11 @@ class RELI:
                 # Iterate through mySNP entries
                 for i in range(len(entry[1])):
                     # Find the SNP entry with this value at this location i
-                    for snpit in self.SNP_vec_temp:
+                    for (ii, snpit) in enumerate(self.SNP_vec_temp):
                         if entry[1][i] == snpit["snp_name"]:
                             # We found it! Push into mySNP + erase from tmp vector
                             newld["mySNP"].append(snpit)
-                            del snpit
+                            del self.SNP_vec_temp[ii]
                             break
                 self.ld_list.append(newld)
         # Go through all leftover values + push into LD list
@@ -351,10 +355,9 @@ class RELI:
                 break
         return okay
     
-    def overlapping(self, SNPvecA, bedvecA, _iter_number):
+    def overlapping(self, SNPvecA, bedvecA, rsid_collector, _iter_number):
         temp_snp_vec = SNPvecA
         in_LD_unique_key_collector = []
-        rsid_collector = []
         k = 0
         temp_snp_vec.sort(key=lambda x: (x["snp_chr"],x["snp_start"]))
         prev_chr = "chr0"
@@ -377,7 +380,7 @@ class RELI:
                 k = self.target_bed_index[snpit["snp_chr"]]
                 while k < len(bedvecA):
                     if bedvecA[k]["bed_chr"] == snpit["snp_chr"] and overlap_exists(bedvecA[k], snpit):
-                        in_LD_unique_key_collector.push_back(snpit["inherited_unique_key_from_LD"])
+                        in_LD_unique_key_collector.append(snpit["inherited_unique_key_from_LD"])
                         if (_iter_number == 0):
                             rsid_collector.append(snpit["snp_name"])
                         break
@@ -386,19 +389,17 @@ class RELI:
                         break
                     k += 1
         
-        return in_LD_unique_key_collector, rsid_collector
+        return in_LD_unique_key_collector
     
     def sim(self):
-        # Seed by system clock
-        ld_sim_vec = []
-
         for i in range(self.num_reps + 1):
+            self.ld_sim_vec = []
             start_pt = self.ld_list[0]
             if i == 0:
                 # First time around
                 for (ind, ldit) in enumerate(self.ld_list):
                     ld_sim = {
-                        "unique_key": distance(0, ind),
+                        "unique_key": ind,
                         "mySNP": ldit["mySNP"]
                     }
                     # Iter through SNP list
@@ -408,10 +409,10 @@ class RELI:
                     ld_sim["dis2keySNP"] = ldit["dis2keySNP"]
                     ld_sim["keySNP"] = ldit["keySNP"]
                     ld_sim["overlap_sim"] = False
-                    ld_sim_vec.append(ld_sim)
+                    self.ld_sim_vec.append(ld_sim)
             else:
                 for (ind, ldit) in enumerate(self.ld_list):
-                    ld_sim = { "unique_key": distance(0, ind), "mySNP": [] }
+                    ld_sim = { "unique_key": ind, "mySNP": [] }
                     t_index = 0
                     t_key_snp = { "length": ldit["keySNP"]["length"] }
                     datagood = False
@@ -451,23 +452,89 @@ class RELI:
                         ld_sim["mySNP"].append(t_snp)
                     
                     ld_sim["overlap_sim"] = False
-                    ld_sim_vec.append(ld_sim)
+                    self.ld_sim_vec.append(ld_sim)
             self.SNP_vec_temp = []
-            for ldsimit in ld_sim_vec:
+            for ldsimit in self.ld_sim_vec:
                 for snpit in ldsimit["mySNP"]:
                     self.SNP_vec_temp.append(snpit)
-            ld_key_collector, self.overlapped_rsids = self.overlapping(self.SNP_vec_temp, self.target_bed_vec, i)
+            ld_key_collector = self.overlapping(self.SNP_vec_temp, self.target_bed_vec, self.overlapped_rsids, i)
             ld_key_collector.sort()
             # Now count all unique values
             ld_unique_key_collector = set(ld_key_collector)
             if i % 500 == 0:
                 print(F"{float(i)/float(self.num_reps)*100}% finished.")
-            
             print(F"Current iteration: {i}, current intersection: {len(ld_unique_key_collector)}")
-            self.simulated_number_vec.append(len(ld_unique_key_collector))
+            self.stats_vec.append(float(len(ld_unique_key_collector)))
+
+    def cal_stats(self, model_mode):
+        sys.stdout.write(F"\r[   ] Finished analysis, parsing statistics (MODE: {model_mode})...")
+        sys.stdout.flush()
+        # Mean value
+        self.mu = sum(self.stats_vec) / float(len(self.stats_vec))
+        
+        temp = 0
+        for it in self.stats_vec:
+            temp += (it - self.mu)*(it - self.mu)
+
+        # Sample standard deviation
+        self.sd = math.sqrt(temp / float(len(self.stats_vec) - 1))
+        if self.sd == 0 or self.stats_vec[0] < math.ceil(float(len(self.ld_list))*self.sig_pct):
+            self.zscore = 0
+        else:
+            self.zscore = (self.stats_vec[0] - self.mu) / self.sd
+        
+        if model_mode is NORMAL:
+            # Using normal distribution
+            self.pval = scipy.stats.norm.sf(self.zscore)
+            self.corr_pval = min(self.pval*self.corr_muliplier, 1.0)
+        elif model_mode is EMPIRICAL:
+            real_obs = self.stats_vec[0]
+            tvec = self.stats_vec
+            tvec.sort()
+            
+            # Number of instances >= the first value
+            greater_or_equal_instance = len(list(filter(tvec, lambda x: x >= real_obs)))
+            self.pval = scipy.stats.norm.sf(self.zscore)
+            self.corr_pval = float(greater_or_equal_instance) / float(len(self.stats_vec))
+        elif model_mode is DEFAULT:
+            self.pval = scipy.stats.norm.sf(self.zscore)
+            self.corr_pval = min(self.pval*self.corr_muliplier, 1.0)
+        print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Successfully parsed statistics. All done!          ")
+    def interpret_output(self, model):
+        # Calculate output results
+        self.cal_stats(model)
+        # Create a folder, if it doesn't already exists
+        if not os.path.exists(self.output_dir):
+            os.mkdir(self.output_dir)
+        print_output = open(os.path.join(self.output_dir, "summary.txt"), 'w+')
+        print_output.write(F"{self.phenotype_name} Analysis:\n")
+        print_output.write(F"\tTF: {self.chip_seq_index[self.target_data_index]['tf']}\n")
+        print_output.write(F"\tCell Label: {self.chip_seq_index[self.target_data_index]['cell_label']}\n")
+        print_output.write(F"\tCell: {self.chip_seq_index[self.target_data_index]['cell']}\n")
+        print_output.write(F"\tIntersect: {self.stats_vec[0]}\n")
+        print_output.write(F"\tTotal: {len(self.ld_list)}\n")
+        print_output.write(F"\tRatio: {self.stats_vec[0] / len(self.ld_list)}\n")
+        print_output.write(F"\tMean: {self.mu}\n")
+        print_output.write(F"\tStd: {self.sd}\n")
+        print_output.write(F"\tZ-Score: {self.zscore}\n")
+        print_output.write(F"\tRelative Risk: {self.stats_vec[0] / self.mu if self.mu != 0 else 0}\n")
+        print_output.write(F"\tP Value: {self.pval}\n")
+        print_output.write(F"\tCorrected P Value: {self.corr_pval}")
+        
+        print_output.close()
+        
+        rsid_list = open(os.path.join(self.output_dir, "result.overlaps"), "w+")
+        for overlaps in self.stats_vec:
+            rsid_list.write(str(int(overlaps)) + "\n")
+        rsid_list.close()
+        overlapped = list(set(self.overlapped_rsids))
+        f = open(os.path.join(self.output_dir, "result.rsids"), "w+")
+        f.write("\n".join(overlapped))
+        f.close()
 
     def __init__(
         self,
+        phenotype_name,
         snp_file,
         num_reps,
         ld_file,
@@ -476,7 +543,8 @@ class RELI:
         directory = "sample_data",
         null = "sample_data/Null/CommonSNP_MAFmatch",
         dbsnp_index = "sample_data/SNPtable/SNPtable",
-        given_species = "hg19.txt"
+        given_species = "hg19.txt",
+        output_dir = "output"
     ):
         # Seed this
         seed = int(time.time())
@@ -484,6 +552,7 @@ class RELI:
         # Read and initialize all the information given
         self.num_reps = num_reps
         self.ld_list = []
+        self.phenotype_name = phenotype_name
         # Information about each ChIPseq entry given
         self.chip_seq_index = []
         # Index where the target data is stored in chip_seq_index
@@ -502,7 +571,9 @@ class RELI:
         self.snp_table_map = {}
         # Used by read_ld to store intermediary informtion
         self.ld_template_list = []
-        self.simulated_number_vec = []
+        self.stats_vec = []
+        self.sig_pct = 0.05
+        self.corr_muliplier = 1
         # TODO: understand this
         self.lookback = 50
         # List of overlapped RSIDs found
@@ -533,19 +604,22 @@ class RELI:
         # RELIinstance->extract_snp_info(RELIinstance->ATGCmap);
         # Copy over SNP data for loading the LD structure
         self.SNP_vec_temp = self.snp_vec
-        # Read the LD file given
-        self.read_ld(ld_file)
         # Load phenotype LD structure
         self.loadLDSNPs(ld_file)
     
         # Begin the simulation!
         self.sim()
+        
+        # Display output results
+        self.output_dir = output_dir
+        self.interpret_output(NORMAL)
 
 instance = RELI(
+    "SLE",
     "example/SLE_EU.snp",
     2000,
     "example/SLE_EU.ld",
     "sample_data/ChIPseq.index",
-    "hg19_0010",
+    "hg19_0302",
     given_species = "sample_data/GenomeBuild/hg19.txt"
 )
