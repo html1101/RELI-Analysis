@@ -194,7 +194,7 @@ class RELI:
         for line in open(src):
             if len(line) == 0:
                 continue
-            [datalabel, source, cell, tf, cell_label, pmid, group, ebv_status, species] = line.replace("\n", "").split("\t")
+            [datalabel, source, cell, tf, cell_label, pmid, group, _, species] = line.replace("\n", "").split("\t")
             self.chip_seq_index.append({
                 "datalabel": datalabel,
                 "source": source,
@@ -203,7 +203,6 @@ class RELI:
                 "cell_label": cell_label,
                 "pmid": pmid,
                 "group": group,
-                "ebv_status": ebv_status,
                 "species": species
             })
             
@@ -620,6 +619,6 @@ instance = RELI(
     2000,
     "example/SLE_EU.ld",
     "sample_data/ChIPseq.index",
-    "hg19_0302",
+    "hg19_0303",
     given_species = "sample_data/GenomeBuild/hg19.txt"
 )
