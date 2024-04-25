@@ -12,6 +12,8 @@ import random, scipy
 from operator import itemgetter, attrgetter
 from scipy import special as sp
 
+DEBUG = True
+
 def LINE():
     return sys._getframe(1).f_lineno
 
@@ -44,8 +46,9 @@ def overlap_exists(bed, snp):
 class BEDSample:
     # Read file given its PATH
     def readFile(self, src: str):
-        sys.stdout.write(F"\r[   ] Reading BED file (file: {src})     ")
-        sys.stdout.flush()
+        if DEBUG:
+            sys.stdout.write(F"\r[   ] Reading BED file (file: {src})     ")
+            sys.stdout.flush()
         # (1) Read file
         for line in open(src):
             # TODO: use binding strength?
@@ -114,7 +117,8 @@ class BEDSample:
         # self.lengths = np.array(self.lengths)[arg_ordering]
         self.median_length = self.lengths[int(len(self.lengths) / 2)]
         
-        print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Parsed BED file (file: {src})")
+        if DEBUG:
+            print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Parsed BED file (file: {src})")
     def makeIndex(self):
         # At the loc of the first target file entry set ind to 0
         bed_chr_name = self.data[0]["bed_chr"]
@@ -126,6 +130,9 @@ class BEDSample:
                 # Distance rn is simply abs value
                 prev_val = entry["bed_chr"]
                 self.index[prev_val] = ind
+        # Add the last one, if necessary
+        if not self.data[-1]["bed_chr"] in self.index:
+            self.index[self.data[-1]] = len(self.data) - 1
     # Initialize given a ChIP-seq input file
     def __init__(self, src: str):
         # List of 
@@ -137,21 +144,11 @@ class BEDSample:
         # Make index
         self.makeIndex()
 
-"""
-Required inputs:
-- ChIP-seq index file - An overview of the info for each ChIP-seq sample analyzed (ex. name, lab, cell, label, etc).
-- LD blocks - This contains a list of 
-- Target - The ChIP-seq sample to observe.
-- Build - The list of where each chromosome starts for the genome being analyzed.
-- Null file - 
-- DBSNP - A database containing a list of all commmon SNPs for the genome.
-- rep - Number of times to repeat the algorithm
-- 
-"""
-class RELI:
+class LoadedData:
     def read_ld(self, src):
-        sys.stdout.write(F"\r[   ] Creating species map (file: {src})")
-        sys.stdout.flush()
+        if DEBUG:
+            sys.stdout.write(F"\r[   ] Creating species map (file: {src})")
+            sys.stdout.flush()
         if not src:
             print(F"\r[ {Fore.RED + 'x' + Style.RESET_ALL} ] Failure reading LD file; no LD file supplied")
             quitting(LINE())
@@ -163,10 +160,12 @@ class RELI:
             if len(line) > 0:
                 key_snp, corresponding_snps = line.replace("\n", "").split(":")
                 self.ld_template_list.append([key_snp, corresponding_snps.strip().split("\t")])
-        print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Successfully read LD file (file: {src})    ")
+        if DEBUG:
+            print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Successfully read LD file (file: {src})    ")
     def createSpeciesMap(self, src):
-        sys.stdout.write(F"\r[   ] Creating species map (file: {src})")
-        sys.stdout.flush()
+        if DEBUG:
+            sys.stdout.write(F"\r[   ] Creating species map (file: {src})")
+            sys.stdout.flush()
         # Open chromosome mapping file
         chromosome_mapping = open(src)
         
@@ -185,17 +184,20 @@ class RELI:
             # chromosome_strucuture_val.push_back(chromosome_strucuture_val.back() + chromosome_strucuture.at(k).second);
             # //cout << chromosome_strucuture_val.back() << endl;
         # }
-        print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Species map created (file: {src})  ")
-    def readChIPSeqIndex(self, src, target):
-        sys.stdout.write(F"\r[   ] Reading ChIP-seq index (file: {src})")
-        sys.stdout.flush()
-        index = 0
+        if DEBUG:
+            print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Species map created (file: {src})  ")
+    def readChIPSeqIndex(self, src):
+        if DEBUG:
+            sys.stdout.write(F"\r[   ] Reading ChIP-seq index (file: {src})")
+            sys.stdout.flush()
         # Open file, then for each line, read data info
         for line in open(src):
             if len(line) == 0:
                 continue
             [datalabel, source, cell, tf, cell_label, pmid, group, _, species] = line.replace("\n", "").split("\t")
-            self.chip_seq_index.append({
+            if datalabel == "label":
+                continue
+            self.chip_seq_index[datalabel] = {
                 "datalabel": datalabel,
                 "source": source,
                 "cell": cell,
@@ -204,27 +206,18 @@ class RELI:
                 "pmid": pmid,
                 "group": group,
                 "species": species
-            })
-            
-            # While reading, check if this is the target
-            if datalabel == target:
-                # This is the target, find + read its ChIP-seq content
-                self.target_data_location = os.path.join(self.directory, "ChIP-seq", target)
-                self.target_data_index = index
-            index += 1
+            }
         
-        if self.target_data_index == -1:
-            # Unable to locate target data
-            print(F"\r[ {Fore.RED + 'x' + Style.RESET_ALL} ] Failure finding target data in ChIP-seq of ID {target}!")
-            quitting(LINE())
-        print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Parsed ChIP-seq index file (file: {src})")
+        if DEBUG:
+            print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Parsed ChIP-seq index file (file: {src})")
     
     def loadNullData(self, src):
         # if (!RELI::snp_matching){	
             # in.ignore(bufferSize, '\n'); 
         # }
-        sys.stdout.write(F"\r[   ] Reading null data (file: {src})")
-        sys.stdout.flush()
+        if DEBUG:
+            sys.stdout.write(F"\r[   ] Reading null data (file: {src})")
+            sys.stdout.flush()
         i = 0
         for line in open(src):
             # if (RELI::snp_matching){ 
@@ -232,16 +225,167 @@ class RELI:
             # }
             # else{
             self.null_model_data.append(int(line.replace("\n", "").split("\t")[0]))
-            if i % 2000000 == 0:
+            if i % 2000000 == 0 and DEBUG:
                 sys.stdout.write(F"\r[ \ ] Reading null data (file: {src})   ")
-            elif i % 1000000 == 0:
+            elif i % 1000000 == 0 and DEBUG:
                 sys.stdout.write(F"\r[ - ] Reading null data (file: {src})   ")
-            elif i % 500000 == 0:
+            elif i % 500000 == 0 and DEBUG:
                 sys.stdout.write(F"\r[ / ] Reading null data (file: {src})   ")
             i += 1
             # }
-        print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Parsed null data (file: {src})    ")
+        if DEBUG:
+            print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Parsed null data (file: {src})    ")
     
+    def loadDbSNPTable(self, src):
+        if DEBUG:
+            sys.stdout.write(F"\r[   ] Reading dbSNP table (file: {src})")
+            sys.stdout.flush()
+        i = 0
+        for line in open(src):
+            linevec = line.replace("\n", "").split("\t")
+            t = {
+                "chr": linevec[0],
+                "start": linevec[1],
+                "end": linevec[2],
+                "rsid": linevec[3],
+                "obs_strand": linevec[4],
+                "ref_allele": linevec[5],
+                "alt_alleles": linevec[6],
+                "type": linevec[7],
+                "alt_allele_info": linevec[8],
+                "alt_allele_freq": linevec[9]
+            }
+
+            self.snp_table_map[t["rsid"]] = t
+            if i % 200000 == 0 and DEBUG:
+                sys.stdout.write(F"\r[ \ ] Reading dbSNP table (file: {src})")
+            elif i % 100000 == 0 and DEBUG:
+                sys.stdout.write(F"\r[ - ] Reading dbSNP table (file: {src})")
+            elif i % 50000 == 0 and DEBUG:
+                sys.stdout.write(F"\r[ / ] Reading dbSNP table (file: {src})")
+            i += 1
+        
+        if DEBUG:
+            print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Parsed dbSNP table (file: {src})    ")
+
+    def __init__(self,
+        phenotype_name,
+        snp_file,
+        num_reps,
+        ld_file,
+        chipseq_index,
+        directory = "sample_data",
+        null = "sample_data/Null/CommonSNP_MAFmatch",
+        # dbsnp_index = "sample_data/SNPtable/SNPtable",
+        given_species = "hg19.txt",
+        output_dir = "output",
+        seed = None):
+                # Seed this
+        seed = int(time.time()) if seed is None else seed
+        print(F"Starting RELI:\n\tSeed: {seed}\n\tSNP File: {snp_file}")
+        
+        # Read and initialize all the information given
+        self.num_reps = num_reps
+        self.ld_list = []
+        
+        self.phenotype_name = phenotype_name
+        # Information about each ChIPseq entry given
+        self.chip_seq_index = {}
+        # Index where the target data is stored in chip_seq_index
+        self.target_data_index = -1
+        # Tuple of all chromosome starting locations
+        self.chromosome_structure = []
+        self.chromosome_structure_val = []
+        # Directory where default information is stored
+        self.directory = directory
+        # Where null model information is stored
+        self.null_model_data = []
+        # List of phenotype SNP entries
+        self.snp_vec = []
+        # List of dbSNP entries, indexed by RSID
+        self.snp_table_map = {}
+        # Used by read_ld to store intermediary informtion
+        self.ld_template_list = []
+        self.stats_vec = []
+        self.sig_pct = 0.05
+        self.corr_muliplier = 1
+        # TODO: understand this
+        self.lookback = 50
+        # List of overlapped RSIDs found
+        self.overlapped_rsids = []
+        
+        # Load genome structure - by default human species
+        self.createSpeciesMap(given_species)
+        # Load null model
+        # (take list of common SNPs)
+        self.loadNullData(null)
+        self.readChIPSeqIndex(chipseq_index)
+        # Load dbSNP table
+        # self.loadDbSNPTable(dbsnp_index)
+        # Extract snp bin info from dbsnp table - doesn't do anything if snp_matching disabled
+        # self.extractSNPInfo()
+        # RELIinstance->extract_snp_info(RELIinstance->ATGCmap);
+        self.snp_file = snp_file
+        # Copy over output dir
+        self.output_dir = output_dir
+        self.ld_file = ld_file
+        
+        self.read_ld(ld_file)
+    def necessary_info(self):
+        return {
+            # Import all quantities over to new_val
+            "lookback": self.lookback,
+            "num_reps": self.num_reps,
+            "ld_list": self.ld_list,
+            "null_model_data": self.null_model_data,
+            "chromosome_structure": self.chromosome_structure,
+            "chromosome_structure_val": self.chromosome_structure_val,
+            "overlapped_rsids": self.overlapped_rsids,
+            "stats_vec": self.stats_vec,
+            "snp_file": self.snp_file,
+            "output_dir": self.output_dir,
+            "ld_file": self.ld_file,
+            "ld_template_list": self.ld_template_list,
+            "stats_vec": self.stats_vec,
+            "sig_pct": self.sig_pct,
+            "corr_muliplier": self.corr_muliplier,
+            "phenotype_name": self.phenotype_name,
+            "chip_seq_index": self.chip_seq_index,
+            "directory": self.directory
+        }
+    def import_quants(self, new_val):
+        # Import all quantities over to new_val
+        new_val.lookback = self.lookback
+        new_val.num_reps = self.num_reps
+        new_val.ld_list = self.ld_list
+        new_val.null_model_data = self.null_model_data
+        new_val.chromosome_structure = self.chromosome_structure
+        new_val.chromosome_structure_val = self.chromosome_structure_val
+        new_val.overlapped_rsids = self.overlapped_rsids
+        new_val.stats_vec = self.stats_vec
+        new_val.snp_file = self.snp_file
+        new_val.output_dir = self.output_dir
+        new_val.ld_file = self.ld_file
+        new_val.ld_template_list = self.ld_template_list
+        new_val.stats_vec = self.stats_vec
+        new_val.sig_pct = self.sig_pct
+        new_val.corr_muliplier = self.corr_muliplier
+        new_val.phenotype_name = self.phenotype_name
+        new_val.chip_seq_index = self.chip_seq_index
+        new_val.directory = self.directory
+
+"""
+Required inputs:
+- ChIP-seq index file - An overview of the info for each ChIP-seq sample analyzed (ex. name, lab, cell, label, etc).
+- LD blocks - This contains a list of 
+- Target - The ChIP-seq sample to observe.
+- Build - The list of where each chromosome starts for the genome being analyzed.
+- Null file - 
+- DBSNP - A database containing a list of all commmon SNPs for the genome.
+- rep - Number of times to repeat the algorithm
+- 
+"""
+class RELI(object):
     def loadSNPFile(self, src):
         sys.stdout.write(F"\r[   ] Reading phenotype SNP data (file: {src})")
         sys.stdout.flush()
@@ -260,42 +404,37 @@ class RELI:
 
         print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Parsed phenotype SNP data (file: {src})    ")
 
-    def loadDbSNPTable(self, src):
-        sys.stdout.write(F"\r[   ] Reading dbSNP table (file: {src})")
-        sys.stdout.flush()
-        i = 0
-        for line in open(src):
-            linevec = line.replace("\n", "").split("\t")
-            t = {
-                "chr": linevec[0],
-                "start": linevec[1],
-                "end": linevec[2],
-                "rsid": linevec[3],
-                "obs_strand": linevec[4],
-                "ref_allele": linevec[5],
-                "alt_alleles": linevec[6],
-                "type": linevec[7],
-                "alt_allele_info": linevec[8],
-                "alt_allele_freq": linevec[9]
-            }
-
-            self.snp_table_map[t["rsid"]] = t
-            if i % 200000 == 0:
-                sys.stdout.write(F"\r[ \ ] Reading dbSNP table (file: {src})")
-            elif i % 100000 == 0:
-                sys.stdout.write(F"\r[ - ] Reading dbSNP table (file: {src})")
-            elif i % 50000 == 0:
-                sys.stdout.write(F"\r[ / ] Reading dbSNP table (file: {src})")
-            i += 1
-            
-        print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Parsed dbSNP table (file: {src})    ")
-
+    def SNPfit(self, LD_A, tempSNP_A, int_A, inVec, 
+	inVec2):
+        pos_set = []
+        neg_set = []
+        max_diff = 0
+        for it in LD_A["dis2keySNP"]:
+            if it > 0:
+                pos_set.append(it)
+            else:
+                neg_set.append(it)
+        if len(pos_set) > 0:
+            max_diff = max(pos_set)
+        if len(neg_set) > 0:
+            max_diff = max(max_diff, abs(min(neg_set)))
+        
+        okay = False
+        for k in range(len(inVec)):
+            if (int_A - max_diff - tempSNP_A["length"] >= inVec2[k] and int_A + max_diff + tempSNP_A["length"] <= inVec2[k + 1]):
+                tempSNP_A["snp_chr"] = inVec[k][0]
+                tempSNP_A["snp_end"] = int_A + math.floor(tempSNP_A["length"] / 2) - inVec2[k]
+                tempSNP_A["snp_start"] = tempSNP_A["snp_end"] - tempSNP_A["length"]
+                okay = True
+                break
+        return okay
+    
     def loadLDSNPs(self, src):
-        sys.stdout.write(F"\r[   ] Reading LD SNP file (file: {src})")
-        sys.stdout.flush()
+        if DEBUG:
+            sys.stdout.write(F"\r[   ] Reading LD SNP file (file: {src})")
+            sys.stdout.flush()
         if src != None:
             # Read through the LD file
-            self.read_ld(src)
             for entry in self.ld_template_list:
                 # Entry is in format [keySNP, mySNP]
                 newld = {
@@ -327,32 +466,8 @@ class RELI:
             for snpit in ldit["mySNP"]:
                 ldit["dis2keySNP"].append(snpit["snp_end"] - ldit["keySNP"]["snp_end"])
         # print(self.ld_list)
-        print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Parsed LD SNP table (file: {src})    ")
-
-    def SNPfit(self, LD_A, tempSNP_A, int_A, inVec, 
-	inVec2):
-        pos_set = []
-        neg_set = []
-        max_diff = 0
-        for it in LD_A["dis2keySNP"]:
-            if it > 0:
-                pos_set.append(it)
-            else:
-                neg_set.append(it)
-        if len(pos_set) > 0:
-            max_diff = max(pos_set)
-        if len(neg_set) > 0:
-            max_diff = max(max_diff, abs(min(neg_set)))
-        
-        okay = False
-        for k in range(len(inVec)):
-            if (int_A - max_diff - tempSNP_A["length"] >= inVec2[k] and int_A + max_diff + tempSNP_A["length"] <= inVec2[k + 1]):
-                tempSNP_A["snp_chr"] = inVec[k][0]
-                tempSNP_A["snp_end"] = int_A + math.floor(tempSNP_A["length"] / 2) - inVec2[k]
-                tempSNP_A["snp_start"] = tempSNP_A["snp_end"] - tempSNP_A["length"]
-                okay = True
-                break
-        return okay
+        if DEBUG:
+            print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Parsed LD SNP table (file: {src})    ")
     
     def overlapping(self, SNPvecA, bedvecA, rsid_collector, _iter_number):
         temp_snp_vec = SNPvecA
@@ -363,8 +478,9 @@ class RELI:
         
         for snpit in temp_snp_vec:
             if snpit["snp_chr"] == prev_chr:
-                t = max(max(k - self.lookback, 0), self.target_bed_index[snpit["snp_chr"]])
-                k = t
+                if not snpit["snp_chr"] in self.target_bed_index:
+                    continue
+                k = max(max(k - self.lookback, 0), self.target_bed_index[snpit["snp_chr"]])
                 while k < len(bedvecA):
                     if bedvecA[k]["bed_chr"] == snpit["snp_chr"] and overlap_exists(bedvecA[k], snpit):
                         in_LD_unique_key_collector.append(snpit["inherited_unique_key_from_LD"])
@@ -376,7 +492,7 @@ class RELI:
                     k += 1
             else:
                 prev_chr = snpit["snp_chr"]
-                k = self.target_bed_index[snpit["snp_chr"]]
+                k = self.target_bed_index[snpit["snp_chr"]] if snpit["snp_chr"] in self.target_bed_index else len(bedvecA)
                 while k < len(bedvecA):
                     if bedvecA[k]["bed_chr"] == snpit["snp_chr"] and overlap_exists(bedvecA[k], snpit):
                         in_LD_unique_key_collector.append(snpit["inherited_unique_key_from_LD"])
@@ -462,12 +578,13 @@ class RELI:
             ld_unique_key_collector = set(ld_key_collector)
             if i % 500 == 0:
                 print(F"{float(i)/float(self.num_reps)*100}% finished.")
-            print(F"Current iteration: {i}, current intersection: {len(ld_unique_key_collector)}")
+            # print(F"Current iteration: {i}, current intersection: {len(ld_unique_key_collector)}")
             self.stats_vec.append(float(len(ld_unique_key_collector)))
 
     def cal_stats(self, model_mode):
-        sys.stdout.write(F"\r[   ] Finished analysis, parsing statistics (MODE: {model_mode})...")
-        sys.stdout.flush()
+        if DEBUG:
+            sys.stdout.write(F"\r[   ] Finished analysis, parsing statistics (MODE: {model_mode})...")
+            sys.stdout.flush()
         # Mean value
         self.mu = sum(self.stats_vec) / float(len(self.stats_vec))
         
@@ -498,17 +615,23 @@ class RELI:
         elif model_mode is DEFAULT:
             self.pval = scipy.stats.norm.sf(self.zscore)
             self.corr_pval = min(self.pval*self.corr_muliplier, 1.0)
-        print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Successfully parsed statistics. All done!          ")
+        print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Successfully parsed statistics for {self.target_data_index} in {int(time.time() - self.time)} seconds. All done!")
     def interpret_output(self, model):
         # Calculate output results
         self.cal_stats(model)
+        tf = self.chip_seq_index[self.target_data_index]['tf']
+        cell_label = self.chip_seq_index[self.target_data_index]['cell_label']
         # Create a folder, if it doesn't already exists
         if not os.path.exists(self.output_dir):
             os.mkdir(self.output_dir)
-        print_output = open(os.path.join(self.output_dir, "summary.txt"), 'w+')
+        tf_path = os.path.join(self.output_dir, f"{tf} - {self.target_data_index}")
+        if not os.path.exists(tf_path):
+            os.mkdir(tf_path)
+
+        print_output = open(os.path.join(tf_path, "summary.txt"), 'w+')
         print_output.write(F"{self.phenotype_name} Analysis:\n")
-        print_output.write(F"\tTF: {self.chip_seq_index[self.target_data_index]['tf']}\n")
-        print_output.write(F"\tCell Label: {self.chip_seq_index[self.target_data_index]['cell_label']}\n")
+        print_output.write(F"\tTF: {tf}\n")
+        print_output.write(F"\tCell Label: {cell_label}\n")
         print_output.write(F"\tCell: {self.chip_seq_index[self.target_data_index]['cell']}\n")
         print_output.write(F"\tIntersect: {self.stats_vec[0]}\n")
         print_output.write(F"\tTotal: {len(self.ld_list)}\n")
@@ -522,68 +645,45 @@ class RELI:
         
         print_output.close()
         
-        rsid_list = open(os.path.join(self.output_dir, "result.overlaps"), "w+")
+        rsid_list = open(os.path.join(tf_path, "result.overlaps"), "w+")
         for overlaps in self.stats_vec:
             rsid_list.write(str(int(overlaps)) + "\n")
         rsid_list.close()
         overlapped = list(set(self.overlapped_rsids))
-        f = open(os.path.join(self.output_dir, "result.rsids"), "w+")
+        f = open(os.path.join(tf_path, "result.rsids"), "w+")
         f.write("\n".join(overlapped))
         f.close()
 
+    def __setitem__(self, key, value):
+        setattr(self, key, value)
+
+    def __getitem__(self, key):
+        return getattr(self, key)
+
     def __init__(
         self,
-        phenotype_name,
-        snp_file,
-        num_reps,
-        ld_file,
-        chipseq_index,
-        target,
-        directory = "sample_data",
-        null = "sample_data/Null/CommonSNP_MAFmatch",
-        dbsnp_index = "sample_data/SNPtable/SNPtable",
-        given_species = "hg19.txt",
-        output_dir = "output"
+        loaded_data,
+        target
     ):
-        # Seed this
-        seed = int(time.time())
-        print(F"Starting RELI:\n\tSeed: {seed}\n\tSNP File: {snp_file}")
-        # Read and initialize all the information given
-        self.num_reps = num_reps
-        self.ld_list = []
-        self.phenotype_name = phenotype_name
-        # Information about each ChIPseq entry given
-        self.chip_seq_index = []
-        # Index where the target data is stored in chip_seq_index
-        self.target_data_index = -1
-        # Tuple of all chromosome starting locations
-        self.chromosome_structure = []
-        # 
-        self.chromosome_structure_val = []
-        # Directory where default information is stored
-        self.directory = directory
-        # Where null model information is stored
-        self.null_model_data = []
-        # List of phenotype SNP entries
-        self.snp_vec = []
-        # List of dbSNP entries, indexed by RSID
-        self.snp_table_map = {}
-        # Used by read_ld to store intermediary informtion
-        self.ld_template_list = []
-        self.stats_vec = []
-        self.sig_pct = 0.05
-        self.corr_muliplier = 1
-        # TODO: understand this
-        self.lookback = 50
-        # List of overlapped RSIDs found
-        self.overlapped_rsids = []
+        for (item, value) in loaded_data.items():
+            self[item] = value
+
+        self.time = time.time()
         
-        # Load genome structure - by default human species
-        self.createSpeciesMap(given_species)
-        # Read ChIP-seq index file and set target ChIP-seq file
-        self.readChIPSeqIndex(chipseq_index, target)
-        # Init target ChIP-seq file object
-        # RELI::target_bed_file TBF;
+        # Load phenotype SNP file
+        self.snp_vec = []
+        self.loadSNPFile(self.snp_file)
+        # Copy over SNP data for loading the LD structure
+        self.SNP_vec_temp = self.snp_vec
+        
+        self.loadLDSNPs(self.ld_file)
+        self.target_data_location = os.path.join(self.directory, "ChIP-seq", target)
+        self.target_data_index = target
+
+        tf_path = os.path.join(self.output_dir, f"{self.chip_seq_index[self.target_data_index]['tf']} - {self.target_data_index}")
+        if os.path.exists(tf_path):
+            print("Detected this already exists, skipping target")
+            return
         
         # Load target ChIP-seq file (target_data_location set by readChIPSeqIndex)
         tbf = BEDSample(self.target_data_location)
@@ -591,34 +691,22 @@ class RELI:
         self.target_bed_vec = tbf.data
         # Contains the location of where each chromosome starts
         self.target_bed_index = tbf.index
-        # Load null model
-        # (take list of common SNPs)
-        self.loadNullData(null)
-        # Load phenotype SNP file
-        self.loadSNPFile(snp_file)
-        # Load dbSNP table
-        self.loadDbSNPTable(dbsnp_index)
-        # Extract snp bin info from dbsnp table - doesn't do anything if snp_matching disabled
-        # self.extractSNPInfo()
-        # RELIinstance->extract_snp_info(RELIinstance->ATGCmap);
-        # Copy over SNP data for loading the LD structure
-        self.SNP_vec_temp = self.snp_vec
-        # Load phenotype LD structure
-        self.loadLDSNPs(ld_file)
-    
+        
         # Begin the simulation!
         self.sim()
         
         # Display output results
-        self.output_dir = output_dir
+        self.output_dir = self.output_dir
         self.interpret_output(NORMAL)
 
-instance = RELI(
-    "SLE",
+
+# Example usage:
+"""
+data = LoadedData("SLE",
     "example/SLE_EU.snp",
     2000,
     "example/SLE_EU.ld",
     "sample_data/ChIPseq.index",
-    "hg19_0303",
-    given_species = "sample_data/GenomeBuild/hg19.txt"
-)
+    given_species = "sample_data/GenomeBuild/hg19.txt")
+instance = RELI(data, "hg19_0302")
+"""

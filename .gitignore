@@ -4,3 +4,5 @@ sample_data/ChIP-seq/hg19_0***
 CommonSNP_MAFmatch
 example/*
 .Rproj.user
+output/*
+!output/EBNA2 - hg19_0302
