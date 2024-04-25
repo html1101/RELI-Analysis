@@ -268,6 +268,24 @@ class LoadedData:
         if DEBUG:
             print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Parsed dbSNP table (file: {src})    ")
 
+    def loadSNPFile(self, src):
+        sys.stdout.write(F"\r[   ] Reading phenotype SNP data (file: {src})")
+        sys.stdout.flush()
+        
+        for line in open(src):
+            [snp_chr, snp_start, snp_end, snp_name] = line.replace("\n", "").split("\t")
+            newsnp = {
+                "snp_chr": snp_chr,
+                "snp_start": int(snp_start),
+                "snp_end": int(snp_end),
+                "snp_name": snp_name
+            }
+            newsnp["length"] = newsnp["snp_end"] - newsnp["snp_start"]
+
+            self.snp_vec.append(newsnp)
+
+        print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Parsed phenotype SNP data (file: {src})    ")
+
     def __init__(self,
         phenotype_name,
         snp_file,
@@ -330,7 +348,12 @@ class LoadedData:
         self.output_dir = output_dir
         self.ld_file = ld_file
         
-        self.read_ld(ld_file)
+        if ld_file:
+            self.read_ld(ld_file)
+
+        # Load phenotype SNP file
+        self.snp_vec = []
+        self.loadSNPFile(self.snp_file)
     def necessary_info(self):
         return {
             # Import all quantities over to new_val
@@ -351,7 +374,8 @@ class LoadedData:
             "corr_muliplier": self.corr_muliplier,
             "phenotype_name": self.phenotype_name,
             "chip_seq_index": self.chip_seq_index,
-            "directory": self.directory
+            "directory": self.directory,
+            "snp_vec": self.snp_vec
         }
     def import_quants(self, new_val):
         # Import all quantities over to new_val
@@ -386,24 +410,6 @@ Required inputs:
 - 
 """
 class RELI(object):
-    def loadSNPFile(self, src):
-        sys.stdout.write(F"\r[   ] Reading phenotype SNP data (file: {src})")
-        sys.stdout.flush()
-        
-        for line in open(src):
-            [snp_chr, snp_start, snp_end, snp_name] = line.replace("\n", "").split("\t")
-            newsnp = {
-                "snp_chr": snp_chr,
-                "snp_start": int(snp_start),
-                "snp_end": int(snp_end),
-                "snp_name": snp_name
-            }
-            newsnp["length"] = newsnp["snp_end"] - newsnp["snp_start"]
-
-            self.snp_vec.append(newsnp)
-
-        print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Parsed phenotype SNP data (file: {src})    ")
-
     def SNPfit(self, LD_A, tempSNP_A, int_A, inVec, 
 	inVec2):
         pos_set = []
@@ -453,6 +459,12 @@ class RELI(object):
                             del self.SNP_vec_temp[ii]
                             break
                 self.ld_list.append(newld)
+        else:
+            while len(self.SNP_vec_temp) > 0:
+                snpit = self.SNP_vec_temp[0]
+                self.ld_list.append({"keySNP": snpit, "mySNP": [snpit], "dis2keySNP": []})
+                del self.SNP_vec_temp[0]
+
         # Go through all leftover values + push into LD list
         for leftover_entry in self.SNP_vec_temp:
             self.ld_list.append({
@@ -466,6 +478,7 @@ class RELI(object):
             for snpit in ldit["mySNP"]:
                 ldit["dis2keySNP"].append(snpit["snp_end"] - ldit["keySNP"]["snp_end"])
         # print(self.ld_list)
+
         if DEBUG:
             print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Parsed LD SNP table (file: {src})    ")
     
@@ -670,13 +683,8 @@ class RELI(object):
 
         self.time = time.time()
         
-        # Load phenotype SNP file
-        self.snp_vec = []
-        self.loadSNPFile(self.snp_file)
         # Copy over SNP data for loading the LD structure
-        self.SNP_vec_temp = self.snp_vec
-        
-        self.loadLDSNPs(self.ld_file)
+        self.SNP_vec_temp = self.snp_vec.copy()
         self.target_data_location = os.path.join(self.directory, "ChIP-seq", target)
         self.target_data_index = target
 
@@ -684,6 +692,8 @@ class RELI(object):
         if os.path.exists(tf_path):
             print("Detected this already exists, skipping target")
             return
+        
+        self.loadLDSNPs(self.ld_file)
         
         # Load target ChIP-seq file (target_data_location set by readChIPSeqIndex)
         tbf = BEDSample(self.target_data_location)

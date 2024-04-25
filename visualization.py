@@ -27,19 +27,21 @@ def handle_bin(data, bin, thread_id):
     for target in bin:
         print(F"Thread {thread_id} running on target {target}")
         # Run RELI - we're saving the results into files so no saving happens here
-        r = RELI(data, target)
-        del r
+        RELI(data, target)
 
 if __name__ == '__main__':
     from multiprocessing import Process
     print("Main line starting multithreading processes")
+    snp_file = "mas/type3/Vitiligo.snp"
     # We first load in the data we use for all the ChIP-seq files before beginning analysis.
     data = LoadedData("SLE",
-        "example/SLE_EU.snp",
+        snp_file,
         1000,
-        "example/SLE_EU.ld",
+        # No LD file supplying
+        None,
         "sample_data/ChIPseq.index",
-        given_species = "sample_data/GenomeBuild/hg19.txt")
+        given_species = "sample_data/GenomeBuild/hg19.txt",
+        output_dir="mas_type3")
 
     # Iterate over all the ChIP-seq options loaded in
     # Number of threads we're going to use for processing
@@ -56,14 +58,13 @@ if __name__ == '__main__':
     threads = []
     necessary_info = data.necessary_info()
     for i, bin in enumerate(bins):
-        # t = Process(target=handle_bin, args=[necessary_info, bin, i])
-        # threads.append(t)
-        # t.start()
-        handle_bin(necessary_info, bin, i)
+        t = Process(target=handle_bin, args=[necessary_info, bin, i])
+        threads.append(t)
+        t.start()
     
     # Now join all the threads to the main thread
-    # for thread in threads:
-        # thread.join()
+    for thread in threads:
+        thread.join()
     
     print("We're done, yay!")
 

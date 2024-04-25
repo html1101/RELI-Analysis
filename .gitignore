@@ -6,3 +6,5 @@ example/*
 .Rproj.user
 output/*
 !output/EBNA2 - hg19_0302
+output_SLE/*
+mas_type3/*
