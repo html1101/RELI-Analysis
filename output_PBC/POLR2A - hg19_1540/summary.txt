@@ -1,0 +1,13 @@
+SLE Analysis:
+	TF: POLR2A
+	Cell Label: CD4+_T_cells+invitrogen
+	Cell: CD4_Tcells
+	Intersect: 11.0
+	Total: 2370
+	Ratio: 0.004641350210970464
+	Mean: 8.696636696636697
+	Std: 11.407400791372288
+	Z-Score: 0
+	Relative Risk: 1.2648567927707153
+	P Value: 0.5
+	Corrected P Value: 0.5

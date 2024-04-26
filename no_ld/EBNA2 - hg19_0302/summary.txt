@@ -1,0 +1,13 @@
+SLE Analysis:
+	TF: EBNA2
+	Cell Label: MutuIII
+	Cell: Mutu
+	Intersect: 90.0
+	Total: 1359
+	Ratio: 0.06622516556291391
+	Mean: 10.45727136431784
+	Std: 3.714471476647061
+	Z-Score: 21.414279026173308
+	Relative Risk: 8.606451612903227
+	P Value: 4.917700188400242e-102
+	Corrected P Value: 4.917700188400242e-102

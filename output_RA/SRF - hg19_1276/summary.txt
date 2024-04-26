@@ -1,0 +1,13 @@
+SLE Analysis:
+	TF: SRF
+	Cell Label: H1-hESC
+	Cell: H1-hESC
+	Intersect: 18.0
+	Total: 4264
+	Ratio: 0.004221388367729831
+	Mean: 2.5549450549450547
+	Std: 1.7648429637321001
+	Z-Score: 0
+	Relative Risk: 7.045161290322581
+	P Value: 0.5
+	Corrected P Value: 0.5

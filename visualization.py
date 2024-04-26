@@ -32,7 +32,7 @@ def handle_bin(data, bin, thread_id):
 if __name__ == '__main__':
     from multiprocessing import Process
     print("Main line starting multithreading processes")
-    snp_file = "mas/type3/Vitiligo.snp"
+    snp_file = "mas/type2/Rheumatoid_arthritis.snp" # "mas/type3/Vitiligo.snp"
     # We first load in the data we use for all the ChIP-seq files before beginning analysis.
     data = LoadedData("SLE",
         snp_file,
@@ -41,7 +41,7 @@ if __name__ == '__main__':
         None,
         "sample_data/ChIPseq.index",
         given_species = "sample_data/GenomeBuild/hg19.txt",
-        output_dir="mas_type3")
+        output_dir="output_RA")
 
     # Iterate over all the ChIP-seq options loaded in
     # Number of threads we're going to use for processing
@@ -57,7 +57,7 @@ if __name__ == '__main__':
 
     threads = []
     necessary_info = data.necessary_info()
-    for i, bin in enumerate(bins):
+    for i, bin in enumerate([["hg19_1543", "hg19_1276", "hg19_1540"]]):
         t = Process(target=handle_bin, args=[necessary_info, bin, i])
         threads.append(t)
         t.start()
