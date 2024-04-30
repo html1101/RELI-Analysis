@@ -8,3 +8,9 @@ output/*
 !output/EBNA2 - hg19_0302
 output_SLE/*
 mas_type3/*
+deeptools
+*.bigWig
+*.gtf
+output_RA/*
+output_PBC/*
+*.gz
