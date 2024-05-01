@@ -325,7 +325,8 @@ class LoadedData:
         # Used by read_ld to store intermediary informtion
         self.ld_template_list = []
         self.stats_vec = []
-        self.sig_pct = 0.05
+        # Previously 0.05
+        self.sig_pct = 0.0001
         self.corr_muliplier = 1
         # TODO: understand this
         self.lookback = 50
@@ -606,12 +607,12 @@ class RELI(object):
             temp += (it - self.mu)*(it - self.mu)
 
         # Sample standard deviation
-        self.sd = math.sqrt(temp / float(len(self.stats_vec) - 1))
+        self.sd = math.sqrt(temp / float(len(self.stats_vec)))
         if self.sd == 0 or self.stats_vec[0] < math.ceil(float(len(self.ld_list))*self.sig_pct):
             self.zscore = 0
         else:
             self.zscore = (self.stats_vec[0] - self.mu) / self.sd
-        
+
         if model_mode is NORMAL:
             # Using normal distribution
             self.pval = scipy.stats.norm.sf(self.zscore)
@@ -628,7 +629,7 @@ class RELI(object):
         elif model_mode is DEFAULT:
             self.pval = scipy.stats.norm.sf(self.zscore)
             self.corr_pval = min(self.pval*self.corr_muliplier, 1.0)
-        print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Successfully parsed statistics for {self.target_data_index} in {int(time.time() - self.time)} seconds. All done!")
+        print(F"\r[ {Fore.GREEN + 'x' + Style.RESET_ALL} ] Successfully parsed statistics for {self.target_data_index} in {int(time.time() - self.time)} seconds. All done! P-val: {self.pval}")
     def interpret_output(self, model):
         # Calculate output results
         self.cal_stats(model)

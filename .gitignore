@@ -12,5 +12,6 @@ deeptools
 *.bigWig
 *.gtf
 output_RA/*
+output_Vitiligo/*
 output_PBC/*
 *.gz

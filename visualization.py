@@ -28,39 +28,49 @@ def handle_bin(data, bin, thread_id):
         print(F"Thread {thread_id} running on target {target}")
         # Run RELI - we're saving the results into files so no saving happens here
         RELI(data, target)
+    exit(0)
 
 if __name__ == '__main__':
     from multiprocessing import Process
     print("Main line starting multithreading processes")
-    snp_file = "mas/type2/Rheumatoid_arthritis.snp" # "mas/type3/Vitiligo.snp"
-    # We first load in the data we use for all the ChIP-seq files before beginning analysis.
-    data = LoadedData("SLE",
-        snp_file,
-        1000,
-        # No LD file supplying
-        None,
-        "sample_data/ChIPseq.index",
-        given_species = "sample_data/GenomeBuild/hg19.txt",
-        output_dir="output_RA")
+    snp_files = ["mas/type2/Rheumatoid_arthritis.snp", "mas/type3/Vitiligo.snp", "mas/type2/Primary_biliary_cirrhosis.snp", "example/SLE_EU.snp"]
 
     # Iterate over all the ChIP-seq options loaded in
     # Number of threads we're going to use for processing
     num_bins = 10
-
-    # Place these into 5 bins, where we will be performing multithreading
-    bins = []
-    chip_values = list(data.chip_seq_index.keys())
-    count = int(len(chip_values) / (num_bins - 1)) if num_bins > 1 else len(chip_values)
-    while len(chip_values) > 0:
-        bins.append(chip_values[:count])
-        del chip_values[:count]
-
     threads = []
-    necessary_info = data.necessary_info()
-    for i, bin in enumerate([["hg19_1543", "hg19_1276", "hg19_1540"]]):
-        t = Process(target=handle_bin, args=[necessary_info, bin, i])
+    out = {
+        "Rheumatoid_arthritis": "RA",
+        "Vitiligo": "Vitiligo",
+        "Primary_biliary_cirrhosis": "PBC",
+        "SLE_EU": "SLE"
+    }
+
+    for i, snp_file in enumerate(snp_files):
+        # We first load in the data we use for all the ChIP-seq files before beginning analysis.
+        output_name = out[snp_file.split("/")[-1].replace(".snp", "")]
+        data = LoadedData("SLE",
+            snp_file,
+            1000,
+            # No LD file supplying
+            None,
+            "sample_data/ChIPseq.index",
+            given_species = "sample_data/GenomeBuild/hg19.txt",
+            output_dir=F"output_{output_name}")
+
+        # Place these into 5 bins, where we will be performing multithreading
+        # bins = []
+        chip_values = list(data.chip_seq_index.keys())
+        # count = int(len(chip_values) / (num_bins - 1)) if num_bins > 1 else len(chip_values)
+        # while len(chip_values) > 0:
+            # bins.append(chip_values[:count])
+            # del chip_values[:count]
+
+        necessary_info = data.necessary_info()
+        t = Process(target=handle_bin, args=[necessary_info, chip_values, i])
         threads.append(t)
         t.start()
+        
     
     # Now join all the threads to the main thread
     for thread in threads:
